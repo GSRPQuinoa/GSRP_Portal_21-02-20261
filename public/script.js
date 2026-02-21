@@ -35,7 +35,7 @@ async function checkAuth(){
 
 // Format Discord IDs into: <@id> (ServerNickname)
 // Works for: "123", "<@123>", "<@!123>" and multiple IDs in one field.
-// Only runs when the field label contains "Discord ID".
+// Runs for any field whose *name/label* suggests it contains a Discord ID.
 const __discordMemberCache = new Map();
 
 function extractDiscordIds(raw){
@@ -59,9 +59,21 @@ async function fetchMemberDisplayName(id){
   }
 }
 
-async function formatDiscordIdsInValue(label, value){
+function looksLikeDiscordIdField(fieldKey){
+  const k = String(fieldKey || "").toLowerCase();
+  // Common patterns across the portal forms
+  // - "... Discord ID" (label text)
+  // - "*_discord_id" (name attribute)
+  // - "discordId" / "discordid" (camel / inconsistent)
+  if(k.includes("discord") && k.includes("id")) return true;
+  if(k.includes("discord_id")) return true;
+  if(k.includes("discordid")) return true;
+  return false;
+}
+
+async function formatDiscordIdsInValue(fieldKey, value){
   if(!value) return value;
-  if(!String(label || "").toLowerCase().includes("discord id")) return value;
+  if(!looksLikeDiscordIdField(fieldKey)) return value;
 
   const ids = extractDiscordIds(value);
   if(!ids.length) return value;
@@ -89,7 +101,10 @@ async function sendToDiscord(formName, fields, user, webhook){
   }));
 
   const description = ["Georgia State Roleplay. Cuz We Can.","",...blocks].join("\n\n");
-  const submitNick = (user.displayName && user.displayName !== user.username) ? ` [${user.displayName}]` : "";
+  // Avoid double-bracketing when displayName already includes brackets like "[T-411] Quinoa"
+  const dn = (user.displayName || "").trim();
+  const showDn = dn && dn !== user.username;
+  const submitNick = showDn ? (dn.startsWith("[") && dn.endsWith("]") ? ` ${dn}` : ` [${dn}]`) : "";
   const footerText = `Submitted by ${getUserHandle(user)}${submitNick} | ID: ${user.id}`;
 
   const payload = {
