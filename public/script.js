@@ -33,72 +33,12 @@ async function checkAuth(){
   }catch(e){console.error(e);showLoginOverlay();}
 }
 
-// Format Discord IDs into: <@id> (ServerNickname)
-// Works for: "123", "<@123>", "<@!123>" and multiple IDs in one field.
-// Runs for any field whose *name/label* suggests it contains a Discord ID.
-const __discordMemberCache = new Map();
-
-function extractDiscordIds(raw){
-  if(!raw) return [];
-  const str = String(raw);
-  const matches = str.match(/\d{15,20}/g);
-  return matches ? Array.from(new Set(matches)) : [];
-}
-
-async function fetchMemberDisplayName(id){
-  if(__discordMemberCache.has(id)) return __discordMemberCache.get(id);
-  try{
-    const res = await fetch(`/api/discord/member/${encodeURIComponent(id)}`, { credentials: "include" });
-    const data = await res.json().catch(()=>({}));
-    const name = (data && data.ok && data.displayName) ? String(data.displayName) : "";
-    __discordMemberCache.set(id, name);
-    return name;
-  }catch(e){
-    __discordMemberCache.set(id, "");
-    return "";
-  }
-}
-
-function looksLikeDiscordIdField(fieldKey){
-  const k = String(fieldKey || "").toLowerCase();
-  // Common patterns across the portal forms
-  // - "... Discord ID" (label text)
-  // - "*_discord_id" (name attribute)
-  // - "discordId" / "discordid" (camel / inconsistent)
-  if(k.includes("discord") && k.includes("id")) return true;
-  if(k.includes("discord_id")) return true;
-  if(k.includes("discordid")) return true;
-  return false;
-}
-
-async function formatDiscordIdsInValue(fieldKey, value){
-  if(!value) return value;
-  if(!looksLikeDiscordIdField(fieldKey)) return value;
-
-  const ids = extractDiscordIds(value);
-  if(!ids.length) return value;
-
-  let out = String(value);
-
-  for(const id of ids){
-    const nick = await fetchMemberDisplayName(id);
-    const replacement = nick ? `<@${id}> (${nick})` : `<@${id}>`;
-
-    // Replace bare IDs and mention forms
-    out = out.replace(new RegExp(`\\b${id}\\b`, "g"), replacement);
-    out = out.replace(new RegExp(`<@!?${id}>`, "g"), replacement);
-  }
-
-  return out;
-}
-
 
 async function sendToDiscord(formName, fields, user, webhook){
-  const blocks = await Promise.all(fields.map(async ([k,v])=>{
-    const formatted = await formatDiscordIdsInValue(k, v || "");
-    const val = (formatted || "").trim() || "*n/a*";
+  const blocks = fields.map(([k,v])=>{
+    const val = (v || "").trim() || "*n/a*";
     return `**${k}:**\n${val}`;
-  }));
+  });
 
   const description = ["Georgia State Roleplay. Cuz We Can.","",...blocks].join("\n\n");
   // Avoid double-bracketing when displayName already includes brackets like "[T-411] Quinoa"
