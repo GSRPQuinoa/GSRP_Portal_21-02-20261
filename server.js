@@ -17,7 +17,7 @@ app.use(
     name: "gsrp_session",
     secret: process.env.SESSION_SECRET || "change-me",
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
