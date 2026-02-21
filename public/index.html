@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GSRP Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-card">
+    <h1>GSRP Portal Login</h1>
+    <p class="muted">Use Discord to access the GSRP Portal.</p>
+    <button id="discordLoginButton">Login with Discord</button>
+    <p class="login-footer muted">
+      You must be in the GSRP Discord server and have an allowed role.
+    </p>
+  </div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="portal-title">GSRP Portal</div>
+    </div>
+    <nav class="nav">
+      <p class="nav-label">Navigation</p>
+      <button class="nav-item active" data-page="home">
+        <span>🏠</span><span>Home</span>
+      </button>
+      <button class="nav-item" data-page="leo">
+        <span>👮</span><span>LEO/Staff</span>
+      </button>
+      <button class="nav-item" data-page="points">
+        <span>📊</span><span>Point Logging</span>
+      </button>
+      <button class="nav-item" data-page="admin">
+        <span>📈</span><span>Command Dashboard</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <p class="muted small">Logged in as</p>
+      <p class="user-name" id="sidebarUserName">Not logged in</p>
+      <p class="muted tiny" id="sidebarUserRank"></p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div></div>
+      <div class="topbar-user">
+        <span id="topbarUserName">Georgia State RolePlay Official Portal</span>
+        <span class="topbar-user-rank" id="topbarUserRank"></span>
+      </div>
+    </header>
+
+    <!-- HOME -->
+    <section class="page" id="page-home">
+      <div class="page-inner">
+        <h1>Quick Actions</h1>
+        <p class="muted">Access your most used Forms quickly.</p>
+        <div class="actions-row">
+          <button class="action-btn primary" data-page-jump="leo" data-tab-jump="leo-punishment">🧾 Punishment Log</button>
+          <button class="action-btn primary" data-page-jump="leo" data-tab-jump="leo-yeet">🧾 Needs Yeet</button>
+        </div>
+        <h2 style="margin-top:32px;">Supervisor Point Logging</h2>
+        <div class="actions-row">
+          <button class="action-btn" data-page-jump="points" data-tab-jump="patrol">🚓 Patrol Log</button>
+          <button class="action-btn" data-page-jump="points" data-tab-jump="onboarding">👤 Onboarding Log</button>
+          <button class="action-btn" data-page-jump="points" data-tab-jump="training">🎓 Training Log</button>
+          <button class="action-btn" data-page-jump="points" data-tab-jump="ridealong">👥 Ride Along Log</button>
+        </div>
+        <footer class="home-footer">
+          <p>Georgia State Roleplay. Cuz We Can.</p>
+          <p class="muted tiny">EST: 2018</p>
+        </footer>
+      </div>
+    </section>
+
+    <!-- LEO / STAFF -->
+    
+    <!-- LEO / STAFF -->
+    <section class="page hidden" id="page-leo">
+      <div class="page-inner">
+        <h1>LEO/Staff</h1>
+        <p class="muted">Server Punishment And Revocation Forms.</p>
+
+        <div class="tabs">
+          <button class="tab-button active" data-tab="leo-punishment">Punishment Log</button>
+          <button class="tab-button" data-tab="leo-yeet">Needs Yeet</button>
+        </div>
+
+        <!-- PUNISHMENT LOG TAB -->
+        <div class="card tab-panel" id="tab-leo-punishment">
+          <h2>Punishment Log</h2>
+          <p class="muted">Record disciplinary actions & Revocation Requests.</p>
+          <form id="punishmentForm"
+                data-log-to-discord="true"
+                data-form-name="Punishment Log"
+                data-webhook="https://discord.com/api/webhooks/1441605541133549638/udoa28_e6ERRNsf3sc1OCpNu6FyYpwp2_VLZ7Uf8D6lEmKatWpe3xZyemuRBPu8LAqKd"
+                data-status-target="punishmentStatus">
+            <div class="field-group">
+              <label>Issuer's Discord ID</label>
+              <input name="Issuers Discord ID" placeholder="Your Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Offender's Discord ID</label>
+              <input name="Offenders Discord ID" placeholder="Offender's Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Punishment Log</label>
+              <select name="Punishment Log" required>
+                <option value="">Select punishment type</option>
+                <option>Strike</option>
+                <option>Removal (Without Ban)</option>
+                <option>Removal (With Ban)</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label>Reason for Punishment</label>
+              <textarea name="Reason for Punishment" placeholder="Provide detailed reason..." required></textarea>
+              <p class="help-text">Provide detailed information</p>
+            </div>
+            <div class="field-group">
+              <label>Evidence</label>
+              <textarea name="Evidence" placeholder="Enter evidence links or description (N/A if none)" required></textarea>
+              <p class="help-text">Put N/A if no evidence</p>
+            </div>
+
+            <button type="submit" class="submit-btn full">Submit Punishment Log</button>
+            <div id="punishmentStatus" class="status-text muted"></div>
+          </form>
+        </div>
+
+        <!-- NEEDS YEET TAB -->
+        <div class="card tab-panel hidden" id="tab-leo-yeet">
+          <h2>Needs Yeet</h2>
+          <p class="muted">Request revocation of perms, tags and access.</p>
+
+          <form id="needsYeetForm"
+                data-log-to-discord="true"
+                data-form-name="Needs Yeet"
+                data-webhook="https://discord.com/api/webhooks/1443349393611690134/X8f5_ocaksRM-xRK5UJhdo7d7niQWyuFYbk_qSooRrP1ZNACPKwX8LW-Q-VWBijqAbFO"
+                data-status-target="needsYeetStatus">
+            <div class="field-group">
+              <label>Your Discord ID</label>
+              <input name="Your Discord ID" placeholder="Your Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Offender's Discord ID</label>
+              <input name="Offender's Discord ID" placeholder="Offender's Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Discord Perms / TeamSpeak Perms</label>
+              <select name="Discord Perms / TeamSpeak Perms" multiple required>
+                <option>Discord Roles</option>
+                <option>TeamSpeak Tags</option>
+                <option>Other</option>
+              </select>
+              <p class="help-text">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</p>
+            </div>
+            <div class="field-group">
+              <label>What needs to be revoked</label>
+              <select name="What needs to be revoked" multiple required>
+                <option>Sub Dept Tags</option>
+                <option>Spike Cert</option>
+                <option>Google Group</option>
+                <option>Other</option>
+              </select>
+              <p class="help-text">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</p>
+            </div>
+            <div class="field-group">
+              <label>Why do they need to be revoked</label>
+              <select name="Why do they need to be revoked" required>
+                <option value="">Select reason</option>
+                <option>Removed</option>
+                <option>Resigned</option>
+                <option>Left Discord/s</option>
+                <option>Archived</option>
+              </select>
+            </div>
+            <button type="submit" class="submit-btn full">Submit Needs Yeet</button>
+            <div id="needsYeetStatus" class="status-text muted"></div>
+          </form>
+
+        </div>
+      </div>
+    </section>
+
+
+    <!-- POINT LOGGING -->
+    <section class="page hidden" id="page-points">
+      <div class="page-inner">
+        <h1>Supervisor Point Logging</h1>
+        <p class="muted">Track and manage patrol activities.</p>
+
+        <div class="tabs">
+          <button class="tab-button active" data-tab="patrol">Patrol Log</button>
+          <button class="tab-button" data-tab="onboarding">Onboarding Log</button>
+          <button class="tab-button" data-tab="training">Training Log</button>
+          <button class="tab-button" data-tab="ridealong">Ride Along Log</button>
+        </div>
+
+        <!-- PATROL -->
+        <div class="card tab-panel" id="tab-patrol">
+          <header class="card-header">
+            <h2>Patrol Log</h2>
+            <p class="muted">Record your patrol activities</p>
+          </header>
+
+          <form id="patrolForm"
+                data-log-to-discord="true"
+                data-form-name="Patrol Log"
+                data-webhook="https://discord.com/api/webhooks/1441605457805443104/LI80x6XOVPNbpmJXpz8bbkxjNmCfkGIuG-DE2qTTvnesviOfczP4nWP_FfSE6QhwWiB7"
+                data-status-target="patrolStatus">
+            <div class="field-group">
+              <label>Discord ID</label>
+              <input name="Discord ID" placeholder="Your Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>How long was your patrol?</label>
+              <input name="Patrol Length" placeholder="e.g., 2 hours 45 Minutes (MAKE SURE TO FOLLOW FORMAT)" required />
+            </div>
+            <div class="field-group">
+              <label>What RTO were you in?</label>
+              <p class="help-text">Select ALL RTOs you were a part of</p>
+              <div class="checkbox-row">
+                <label><input type="checkbox" name="RTO" value="North" /> North</label>
+                <label><input type="checkbox" name="RTO" value="South" /> South</label>
+                <label><input type="checkbox" name="RTO" value="Highways" /> Highways</label>
+              </div>
+            </div>
+            <div class="field-group">
+              <label>Who was the PC?</label>
+              <input name="PC" placeholder="Input all PC in the RTO" required />
+            </div>
+            <div class="field-group">
+              <label>How Many Priorities?</label>
+              <input type="number" name="Priorities" min="0" value="0" required />
+            </div>
+            <div class="field-group">
+              <label>Patrol Summary</label>
+              <textarea name="Patrol Summary" placeholder="Provide some detail..." required></textarea>
+              <p class="help-text">Provide some detail, doesn't need to be a book's worth</p>
+            </div>
+            <div class="field-group">
+              <label>Other Information</label>
+              <textarea name="Other Information" placeholder="If no info put N/A" required></textarea>
+            </div>
+
+            <button type="submit" class="submit-btn full">Submit Patrol Log</button>
+            <div id="patrolStatus" class="status-text muted"></div>
+          </form>
+        </div>
+
+        <!-- ONBOARDING -->
+        <div class="card tab-panel hidden" id="tab-onboarding">
+          <header class="card-header">
+            <h2>Onboarding Log</h2>
+            <p class="muted">Document Cadet Onboarding</p>
+          </header>
+
+          <form id="onboardingForm"
+                data-log-to-discord="true"
+                data-form-name="Onboarding Log"
+                data-webhook="https://discord.com/api/webhooks/1441605628194717871/aAmnEtI2Uil0GeksUkqgJvD2ZJdvAVqR8UL4hJK7x3MUq8pp335Li2tGeoRCOU6a14yn"
+                data-status-target="onboardingStatus">
+            <div class="field-group">
+              <label>Your Discord ID</label>
+              <input name="Trainer Discord ID" placeholder="Your Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Cadet's Discord ID</label>
+              <input name="Cadet Discord ID" placeholder="Cadet's Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>How long was the Onboarding?</label>
+              <input name="Onboarding Length" placeholder="e.g., 45 minutes" required />
+            </div>
+            <div class="field-group">
+              <label>Comments/Feedback</label>
+              <textarea name="Onboarding Comments" placeholder="Please provide feedback..." required></textarea>
+              <p class="help-text">Please provide something. Log will be denied if you input N/A</p>
+            </div>
+
+            <button type="submit" class="submit-btn full">Submit Onboarding Log</button>
+            <div id="onboardingStatus" class="status-text muted"></div>
+          </form>
+        </div>
+
+        <!-- TRAINING -->
+        <div class="card tab-panel hidden" id="tab-training">
+          <header class="card-header">
+            <h2>Training Log</h2>
+            <p class="muted">Record Training Sessions</p>
+          </header>
+
+          <form id="trainingForm"
+                data-log-to-discord="true"
+                data-form-name="Training Log"
+                data-webhook="https://discord.com/api/webhooks/1441604849031577743/YYD2VXih7VvpSvNG2-OLeidNLyBi4LwWkqSz2PsJl5PTMvICd-Cu3qwg3jJQBAeb0PDq"
+                data-status-target="trainingStatus">
+            <div class="field-group">
+              <label>Your Discord ID</label>
+              <input name="Trainer Discord ID (Training)" placeholder="Your Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Trainee's Discord ID/s</label>
+              <textarea name="Trainee Discord IDs" placeholder="Please list them (one per line)" required></textarea>
+            </div>
+            <div class="field-group">
+              <label>Type of Training?</label>
+              <div class="checkbox-row">
+                <label><input type="checkbox" name="Training Type" value="Cadet To Trooper" /> Cadet To Trooper</label>
+                <label><input type="checkbox" name="Training Type" value="Spike Cert" /> Spike Cert</label>
+                <label><input type="checkbox" name="Training Type" value="Master Training" /> Master Training</label>
+              </div>
+            </div>
+            <div class="field-group">
+              <label>Comments/Feedback</label>
+              <textarea name="Training Comments" placeholder="Please provide feedback for all cadets..." required></textarea>
+              <p class="help-text">Please provide feedback for all Cadets. N/A will not be accepted</p>
+            </div>
+
+            <button type="submit" class="submit-btn full">Submit Training Log</button>
+            <div id="trainingStatus" class="status-text muted"></div>
+          </form>
+        </div>
+
+        <!-- RIDE ALONG -->
+        <div class="card tab-panel hidden" id="tab-ridealong">
+          <header class="card-header">
+            <h2>Ride Along Log</h2>
+            <p class="muted">Document Cadet Ride-Along's</p>
+          </header>
+
+          <form id="ridealongForm"
+                data-log-to-discord="true"
+                data-form-name="Ride Along Log"
+                data-webhook="https://discord.com/api/webhooks/1441605371931267172/-LWRXlHw4SIACASgh6zojOK_5DMufh7VbKhJayCkTvAa4bOep2kcTswrzQCaXrTaNUat"
+                data-status-target="ridealongStatus">
+            <div class="field-group">
+              <label>Your Discord ID</label>
+              <input name="Trainer Discord ID (Ride Along)" placeholder="Your Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Trainee's Discord ID</label>
+              <input name="Trainee Discord ID (Ride Along)" placeholder="Trainee's Discord ID (numbers only)" required />
+            </div>
+            <div class="field-group">
+              <label>Time</label>
+              <input name="Time" placeholder="5:23 PM CST - 6:23 PM CST" required />
+              <p class="help-text">Must be in your server's timezone</p>
+            </div>
+            <div class="field-group">
+              <label>Notes</label>
+              <textarea name="Ride Along Notes" placeholder="Include notes about the ride along..." required></textarea>
+              <p class="help-text">Must include some notes or log may be denied</p>
+            </div>
+
+            <button type="submit" class="submit-btn full">Submit Ride Along Log</button>
+            <div id="ridealongStatus" class="status-text muted"></div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN DASHBOARD -->
+    <section class="page hidden" id="page-admin">
+      <div class="page-inner">
+        <h1>Command Dashboard</h1>
+        <p class="muted">Stats for Supervisor logging. Access restricted to Captain+.</p>
+        <div id="adminError" class="card hidden">
+          <p class="error">You do not have permission to view this dashboard, If you are meant to , Reload the page.</p>
+        </div>
+        <div id="adminContent" class="card hidden">
+          <div class="admin-header-row">
+            <h2>Log Summary by User</h2>
+            <button id="resetStatsButton" class="submit-btn small">Reset Stats</button>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Total Logs</th>
+                <th>By Type</th>
+              </tr>
+            </thead>
+            <tbody id="adminSummaryBody"></tbody>
+          </table>
+
+          <div class="admin-user-detail">
+            <h2 class="admin-subheading">Command View &mdash; Logs by User</h2>
+            <div class="admin-user-controls">
+              <label for="adminUserSelect">Select a user:</label>
+              <select id="adminUserSelect">
+                <option value="">-- Select a user --</option>
+              </select>
+            </div>
+            <div id="adminUserStats" class="admin-user-stats muted small"></div>
+            <table class="admin-table admin-user-logs">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Details</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminUserLogsBody"></tbody>
+            </table>
+          </div>
+
+          <div id="adminResetStatus" class="status-text muted"></div>
+        </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
