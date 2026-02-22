@@ -277,6 +277,27 @@ app.get("/api/admin/logs/user/:userId", requireAdmin, async (req, res) => {
   }
 });
 
+
+
+app.post("/api/admin/logs/archive/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!/^\d+$/.test(id)) {
+      return res.status(400).json({ ok: false, error: "Invalid log id" });
+    }
+
+    const r = await pool.query(
+      `UPDATE logs SET archived = TRUE WHERE id = $1 AND archived = FALSE`,
+      [id]
+    );
+
+    res.json({ ok: true, updated: r.rowCount });
+  } catch (e) {
+    console.error("archive log error:", e);
+    res.status(500).json({ ok: false, error: "Failed to archive log" });
+  }
+});
+
 app.post("/api/admin/logs/reset", requireAdmin, async (req, res) => {
   try {
     await pool.query(`UPDATE logs SET archived = TRUE WHERE archived = FALSE`);
