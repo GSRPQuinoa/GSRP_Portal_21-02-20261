@@ -120,12 +120,18 @@ async function formatDiscordIdsInValue(label, value) {
   let out = String(value);
 
   for (const id of ids) {
+    // If it's already been formatted once, don't touch it again
+    if (out.includes(`(${id})`) && out.includes(`<@${id}>`)) continue;
+
     const nickRaw = await fetchMemberDisplayName(id);
     const nick = wrapNameForLog(nickRaw) || "(Unknown User)";
     const replacement = `${nick} - (${id}) <@${id}>`;
 
-    out = out.replace(new RegExp(`\\b${id}\\b`, "g"), replacement);
+    // Replace existing mention forms first (<@id> / <@!id>)
     out = out.replace(new RegExp(`<@!?${id}>`, "g"), replacement);
+
+    // Replace bare IDs (avoid replacing the ID inside "(ID)" we just wrote)
+    out = out.replace(new RegExp(`(?<!\()\b${id}\b`, "g"), replacement);
   }
 
   return out;
