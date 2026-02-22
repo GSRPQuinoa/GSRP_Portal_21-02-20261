@@ -9,8 +9,53 @@
 
 let currentUser = null;
 
+let logoutButtonEl = null;
+
+function setLogoutVisible(isVisible) {
+  if (!logoutButtonEl) return;
+  logoutButtonEl.style.display = isVisible ? "inline-flex" : "none";
+}
+
+function ensureLogoutButton() {
+  if (logoutButtonEl) return;
+
+  // Try to place it near the topbar username (no HTML changes required)
+  const topbarName = document.getElementById("topbarUserName");
+  const host = topbarName?.parentElement || document.querySelector(".topbar") || document.body;
+
+  const btn = document.createElement("button");
+  btn.id = "logoutButton";
+  btn.type = "button";
+  btn.textContent = "Logout";
+  btn.style.display = "none";
+  btn.style.marginLeft = "10px";
+  btn.style.padding = "8px 12px";
+  btn.style.borderRadius = "10px";
+  btn.style.border = "1px solid rgba(255,255,255,0.15)";
+  btn.style.background = "rgba(239,68,68,0.9)";
+  btn.style.color = "#fff";
+  btn.style.cursor = "pointer";
+  btn.style.alignItems = "center";
+  btn.style.gap = "6px";
+
+  btn.addEventListener("click", async () => {
+    try {
+      await fetch("/api/logout", { method: "POST", credentials: "include" });
+    } catch (e) {
+      console.error("Logout failed", e);
+    } finally {
+      window.location.reload();
+    }
+  });
+
+  host.appendChild(btn);
+  logoutButtonEl = btn;
+}
+
 function showLoginOverlay() {
   document.getElementById("loginOverlay")?.classList.remove("hidden");
+
+  setLogoutVisible(false);
 }
 function hideLoginOverlay() {
   document.getElementById("loginOverlay")?.classList.add("hidden");
@@ -33,6 +78,9 @@ function getUserHandle(user) {
 function setLoggedInUI(user) {
   currentUser = user;
   hideLoginOverlay();
+
+  ensureLogoutButton();
+  setLogoutVisible(true);
 
   const label = user.displayName || user.username;
 
@@ -554,7 +602,8 @@ async function loadAdminUserView(userId) {
         });
       }
 
-      const details = detailsPieces.join("\n");
+      const details = detailsPieces.join("
+");
       const logId = log.id;
 
       const tr = document.createElement("tr");
@@ -642,6 +691,8 @@ async function resetAdminStats() {
    ========================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
+  ensureLogoutButton();
+  setLogoutVisible(false);
   document.getElementById("discordLoginButton")?.addEventListener("click", () => {
     window.location.href = "/api/login";
   });
