@@ -159,6 +159,41 @@ function collapseMultiValueFields(entries) {
   });
 }
 
+
+// =====================
+// PATROL TIME HELPERS (Command Dashboard)
+// =====================
+function parsePatrolMinutes(text) {
+  if (!text) return 0;
+  const s = String(text).toLowerCase();
+
+  // Supports: "2 hours 10 mins", "2 hour 10 min", "2h 10m", "130 minutes"
+  const hMatch = s.match(/(\d+)\s*h\b/) || s.match(/(\d+)\s*hour/);
+  const mMatch = s.match(/(\d+)\s*min/) || s.match(/(\d+)\s*m\b/);
+
+  const hours = hMatch ? parseInt(hMatch[1], 10) : 0;
+  const mins = mMatch ? parseInt(mMatch[1], 10) : 0;
+
+  return hours * 60 + mins;
+}
+
+function minutesToHoursText(totalMins) {
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+function getFieldValue(fieldsArray, keyName) {
+  if (!Array.isArray(fieldsArray)) return "";
+  const keyLower = String(keyName).toLowerCase().trim();
+  for (const pair of fieldsArray) {
+    if (!Array.isArray(pair) || pair.length < 2) continue;
+    const k = String(pair[0] || "").toLowerCase().trim();
+    if (k === keyLower) return pair[1];
+  }
+  return "";
+}
+
 /* =========================================================
    DISCORD WEBHOOK SEND + STORE TO DB
    ========================================================= */
@@ -478,15 +513,26 @@ async function loadAdminUserView(userId) {
     const users = window.__adminSummaryUsers || [];
     const u = users.find((x) => x.userId === userId);
 
+    // Compute patrol time (from Patrol Length field inside Patrol Logs)
+    let totalPatrolMins = 0;
+    for (const log of logs) {
+      const type = (log.formtype || log.formType || "").toLowerCase();
+      if (!type.includes("patrol")) continue;
+      const fields = log.fieldsjson || log.fieldsJson || [];
+      const len = getFieldValue(fields, "Patrol Length");
+      totalPatrolMins += parsePatrolMinutes(len);
+    }
+
     if (statsEl) {
       const byType = u?.byType ? Object.entries(u.byType).map(([t, c]) => `${t}: ${c}`) : [];
+      const patrolText = totalPatrolMins ? ` • Patrol time: ${minutesToHoursText(totalPatrolMins)}` : "";
       statsEl.textContent = u
-        ? `Total logs: ${u.total}${byType.length ? " • " + byType.join(" • ") : ""}`
-        : "User stats unavailable.";
+        ? `Total logs: ${u.total}${byType.length ? " • " + byType.join(" • ") : ""}${patrolText}`
+        : `Total logs: ${logs.length}${patrolText}`;
     }
 
     if (!logs.length) {
-      body.innerHTML = `<tr><td colspan="3">No logs found for this user.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="4">No logs found for this user.</td></tr>`;
       return;
     }
 
@@ -494,7 +540,7 @@ async function loadAdminUserView(userId) {
       const created = log.createdat || log.createdAt ? new Date(log.createdat || log.createdAt) : null;
       const createdText = created ? created.toLocaleString() : "";
 
-      // ✅ server uses fieldsJson
+      // server uses fieldsJson (pg returns lower-case fieldsjson)
       const fields = log.fieldsjson || log.fieldsJson || [];
       const detailsPieces = [];
 
@@ -508,15 +554,54 @@ async function loadAdminUserView(userId) {
         });
       }
 
-      const details = detailsPieces.join("\n");
+      const details = detailsPieces.join("
+");
+      const logId = log.id;
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${createdText}</td>
         <td>${log.formtype || log.formType || ""}</td>
         <td><pre style="white-space:pre-wrap;margin:0;">${details}</pre></td>
+        <td>
+          <button class="btn-remove-log" data-log-id="${logId}">Remove</button>
+        </td>
       `;
       body.appendChild(tr);
+    });
+
+    // Attach Remove handlers
+    body.querySelectorAll(".btn-remove-log").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const logId = btn.getAttribute("data-log-id");
+        if (!logId) return;
+
+        if (!confirm("Remove this log? This cannot be undone.")) return;
+
+        btn.disabled = true;
+
+        try {
+          const r = await fetch(`/api/admin/logs/archive/${encodeURIComponent(logId)}`, {
+            method: "POST",
+            credentials: "include",
+          });
+
+          const out = await r.json().catch(() => ({}));
+          if (!r.ok || !out.ok) {
+            alert((out && out.error) || "Failed to remove log.");
+            btn.disabled = false;
+            return;
+          }
+
+          // Refresh
+          await loadAdminDashboard();
+          await loadAdminUserView(userId);
+        } catch (e) {
+          console.error(e);
+          alert("Error removing log.");
+          btn.disabled = false;
+        }
+      });
     });
   } catch (e) {
     console.error("loadAdminUserView error", e);
