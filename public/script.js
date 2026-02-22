@@ -131,7 +131,7 @@ async function formatDiscordIdsInValue(label, value) {
     out = out.replace(new RegExp(`<@!?${id}>`, "g"), replacement);
 
     // Replace bare IDs, but avoid replacing inside "(ID)" that we just created
-    const bareRe = new RegExp(`\b${id}\b`, "g");
+    const bareRe = new RegExp(`\\b${id}\\b`, "g");
     out = out.replace(bareRe, (match, offset, whole) => {
       const prev = offset > 0 ? whole[offset - 1] : "";
       // If immediately preceded by "(" it's already in "(ID)" -> leave it
