@@ -1,92 +1,129 @@
+/* =========================================================
+   GSRP Portal - public/script.js
+   Fixes:
+   - Multi-select/checkbox values collapse into ONE line
+   - Admin Command Dashboard now matches server.js responses:
+       /api/admin/logs/summary -> { ok, rows }
+       /api/admin/logs/user/:id -> { ok, logs } with fieldsJson
+   ========================================================= */
+
 let currentUser = null;
 
-function showLoginOverlay(){document.getElementById("loginOverlay").classList.remove("hidden");}
-function hideLoginOverlay(){document.getElementById("loginOverlay").classList.add("hidden");}
+function showLoginOverlay() {
+  document.getElementById("loginOverlay")?.classList.remove("hidden");
+}
+function hideLoginOverlay() {
+  document.getElementById("loginOverlay")?.classList.add("hidden");
+}
 
 // Discord no longer uses discriminators for most accounts.
-// This helper prevents showing "#undefined" in the UI and provides a safe handle.
-function getUserHandle(user){
-  if(!user) return "";
-  if(user.discriminator && String(user.discriminator).trim() && String(user.discriminator) !== "0"){
+// This helper prevents showing "#undefined" in the UI.
+function getUserHandle(user) {
+  if (!user) return "";
+  if (
+    user.discriminator &&
+    String(user.discriminator).trim() &&
+    String(user.discriminator) !== "0"
+  ) {
     return user.username + "#" + user.discriminator;
   }
   return user.tag || user.username;
 }
 
-
-function setLoggedInUI(user){
+function setLoggedInUI(user) {
   currentUser = user;
   hideLoginOverlay();
+
   const label = user.displayName || user.username;
-  document.getElementById("sidebarUserName").textContent = label;
-  document.getElementById("sidebarUserRank").textContent = getUserHandle(user);
-  document.getElementById("topbarUserName").textContent = label;
-  document.getElementById("topbarUserRank").textContent = getUserHandle(user);
+
+  const sideName = document.getElementById("sidebarUserName");
+  const sideRank = document.getElementById("sidebarUserRank");
+  const topName = document.getElementById("topbarUserName");
+  const topRank = document.getElementById("topbarUserRank");
+
+  if (sideName) sideName.textContent = label;
+  if (sideRank) sideRank.textContent = getUserHandle(user);
+  if (topName) topName.textContent = label;
+  if (topRank) topRank.textContent = getUserHandle(user);
 }
 
-async function checkAuth(){
-  try{
-    const res = await fetch("/api/me",{credentials:"include"});
-    if(!res.ok){showLoginOverlay();return;}
+async function checkAuth() {
+  try {
+    const res = await fetch("/api/me", { credentials: "include" });
+    if (!res.ok) {
+      showLoginOverlay();
+      return;
+    }
     const data = await res.json();
-    if(data.ok && data.user){setLoggedInUI(data.user);} else {showLoginOverlay();}
-  }catch(e){console.error(e);showLoginOverlay();}
+    if (data.ok && data.user) setLoggedInUI(data.user);
+    else showLoginOverlay();
+  } catch (e) {
+    console.error(e);
+    showLoginOverlay();
+  }
 }
 
-// Format Discord IDs into: [ServerNickname] - (ID)
-// No mentions/pings. Works for: "123", "<@123>", "<@!123>" and multiple IDs in one field.
-// Runs for any field whose name/label suggests it contains a Discord ID (all portal forms).
+/* =========================================================
+   Discord ID formatting (no pings) -> "[Nickname] - (ID)"
+   ========================================================= */
+
 const __discordMemberCache = new Map();
 
-function extractDiscordIds(raw){
-  if(!raw) return [];
+function extractDiscordIds(raw) {
+  if (!raw) return [];
   const str = String(raw);
   const matches = str.match(/\d{15,20}/g);
   return matches ? Array.from(new Set(matches)) : [];
 }
 
-async function fetchMemberDisplayName(id){
-  if(__discordMemberCache.has(id)) return __discordMemberCache.get(id);
-  try{
-    const res = await fetch(`/api/discord/member/${encodeURIComponent(id)}`, { credentials: "include" });
-    const data = await res.json().catch(()=>({}));
-    const name = (data && data.ok && data.displayName) ? String(data.displayName) : "";
+async function fetchMemberDisplayName(id) {
+  if (__discordMemberCache.has(id)) return __discordMemberCache.get(id);
+
+  try {
+    const res = await fetch(`/api/discord/member/${encodeURIComponent(id)}`, {
+      credentials: "include",
+    });
+    const data = await res.json().catch(() => ({}));
+    const name =
+      data && data.ok && data.displayName ? String(data.displayName) : "";
     __discordMemberCache.set(id, name);
     return name;
-  }catch(e){
+  } catch (e) {
     __discordMemberCache.set(id, "");
     return "";
   }
 }
 
-function wrapNameForLog(name){
+function wrapNameForLog(name) {
   const n = String(name || "").trim();
-  if(!n) return "";
-  // Many GSRP names already start with a callsign in brackets, e.g. "[T-411] Quinoa".
-  // Do NOT double-wrap those.
+  if (!n) return "";
+  // Many names already start with a callsign in brackets, e.g. "[T-411] Quinoa"
   return n.startsWith("[") ? n : `[${n}]`;
 }
 
-function looksLikeDiscordIdField(fieldKey){
+function looksLikeDiscordIdField(fieldKey) {
   const k = String(fieldKey || "").toLowerCase();
-  return (k.includes("discord") && k.includes("id")) || k.includes("discord_id") || k.includes("discordid");
+  return (
+    (k.includes("discord") && k.includes("id")) ||
+    k.includes("discord_id") ||
+    k.includes("discordid")
+  );
 }
 
-async function formatDiscordIdsInValue(label, value){
-  if(!value) return value;
-  if(!looksLikeDiscordIdField(label)) return value;
+async function formatDiscordIdsInValue(label, value) {
+  if (!value) return value;
+  if (!looksLikeDiscordIdField(label)) return value;
 
   const ids = extractDiscordIds(value);
-  if(!ids.length) return value;
+  if (!ids.length) return value;
 
   let out = String(value);
 
-  for(const id of ids){
+  for (const id of ids) {
     const nickRaw = await fetchMemberDisplayName(id);
     const nick = wrapNameForLog(nickRaw) || "(Unknown User)";
     const replacement = `${nick} - (${id})`;
 
-    // Replace bare IDs and mention forms
     out = out.replace(new RegExp(`\\b${id}\\b`, "g"), replacement);
     out = out.replace(new RegExp(`<@!?${id}>`, "g"), replacement);
   }
@@ -94,398 +131,452 @@ async function formatDiscordIdsInValue(label, value){
   return out;
 }
 
+/* =========================================================
+   MULTI-SELECT FIX:
+   Collapse duplicate keys into a single entry, comma-separated
+   Example: RTO: North, South, Highways
+   ========================================================= */
 
-async function sendToDiscord(formName, fields, user, webhook){
-  const blocks = await Promise.all(fields.map(async ([k,v])=>{
-    const formatted = await formatDiscordIdsInValue(k, v || "");
-    const val = (formatted || "").trim() || "*n/a*";
-    return `**${k}:**\n${val}`;
-  }));
+function collapseMultiValueFields(entries) {
+  const order = [];
+  const map = new Map();
 
-  const description = ["Georgia State Roleplay. Cuz We Can.","",...blocks].join("\n\n");
+  for (const [k, v] of entries) {
+    if (!map.has(k)) {
+      map.set(k, []);
+      order.push(k);
+    }
+    map.get(k).push(v);
+  }
+
+  return order.map((k) => {
+    const vals = (map.get(k) || [])
+      .map((x) => (x == null ? "" : String(x).trim()))
+      .filter(Boolean);
+
+    const joined = vals.length > 1 ? vals.join(", ") : vals[0] || "";
+    return [k, joined];
+  });
+}
+
+/* =========================================================
+   DISCORD WEBHOOK SEND + STORE TO DB
+   ========================================================= */
+
+async function sendToDiscord(formName, fields, user, webhook) {
+  const blocks = await Promise.all(
+    fields.map(async ([k, v]) => {
+      const formatted = await formatDiscordIdsInValue(k, v || "");
+      const val = (formatted || "").trim() || "*n/a*";
+      return `**${k}:**\n${val}`;
+    })
+  );
+
+  const description = ["Georgia State Roleplay. Cuz We Can.", "", ...blocks].join(
+    "\n\n"
+  );
+
   const dn = (user.displayName || "").trim();
-  const submitNick = (dn && dn !== user.username) ? (dn.startsWith("[") ? ` ${dn}` : ` [${dn}]`) : "";
+  const submitNick =
+    dn && dn !== user.username ? (dn.startsWith("[") ? ` ${dn}` : ` [${dn}]`) : "";
+
   const footerText = `Submitted by ${getUserHandle(user)}${submitNick} | ID: ${user.id}`;
 
   const payload = {
-    username:"Portal Logs",
-    embeds:[{
-      title:formName || "Portal Submission",
-      description,
-      color:0xf97316,
-      footer:{text:footerText},
-      timestamp:new Date().toISOString()
-    }]
+    username: "Portal Logs",
+    embeds: [
+      {
+        title: formName || "Portal Submission",
+        description,
+        color: 0xf97316,
+        footer: { text: footerText },
+        timestamp: new Date().toISOString(),
+      },
+    ],
   };
 
-  const res = await fetch(webhook,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(payload)
+  // 1) Send to Discord webhook
+  const res = await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-  if(!res.ok) throw new Error("Webhook returned "+res.status);
+  if (!res.ok) throw new Error("Webhook returned " + res.status);
 
-  // store in backend for dashboard
-  try{
-    await fetch("/api/logs/store",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      credentials:"include",
-      body:JSON.stringify({formType:formName,fields})
+  // 2) Store in backend for Command Dashboard
+  try {
+    await fetch("/api/logs/store", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ formType: formName, fields }),
     });
-  }catch(e){console.warn("Failed to store log",e);}
+  } catch (e) {
+    console.warn("Failed to store log", e);
+  }
 }
 
-function attachFormHandlers(){
-  document.querySelectorAll("form[data-log-to-discord='true']").forEach(form=>{
-    form.addEventListener("submit", async (e)=>{
-      e.preventDefault();
-      if(!currentUser){alert("Please login with Discord first.");return;}
+function attachFormHandlers() {
+  document
+    .querySelectorAll("form[data-log-to-discord='true']")
+    .forEach((form) => {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-      const webhook = form.dataset.webhook;
-      if(!webhook || webhook.startsWith("YOUR_")){
-        alert("Webhook not configured for this form.");return;
-      }
-      const formName = form.dataset.formName || "Portal Submission";
-      const fd = new FormData(form);
-      const fields = Array.from(fd.entries());
+        if (!currentUser) {
+          alert("Please login with Discord first.");
+          return;
+        }
 
-      const statusId = form.dataset.statusTarget;
-      const statusEl = statusId ? document.getElementById(statusId) : null;
-      if(statusEl) statusEl.textContent = "Sending to Discord...";
+        const webhook = form.dataset.webhook;
+        if (!webhook || webhook.startsWith("YOUR_")) {
+          alert("Webhook not configured for this form.");
+          return;
+        }
 
-      const submitBtn = form.querySelector("button[type='submit']");
-      if(submitBtn) submitBtn.disabled = true;
+        const formName = form.dataset.formName || "Portal Submission";
 
-      try{
-        await sendToDiscord(formName, fields, currentUser, webhook);
-        if(statusEl) statusEl.textContent = "Logged to Discord ✅";
-        form.reset();
-      }catch(err){
-        console.error(err);
-        if(statusEl) statusEl.textContent = "Error sending to Discord ❌";
-      }finally{
-        if(submitBtn) submitBtn.disabled = false;
-      }
+        const fd = new FormData(form);
+
+        // ✅ multi-select fix
+        const rawEntries = Array.from(fd.entries());
+        const fields = collapseMultiValueFields(rawEntries);
+
+        const statusId = form.dataset.statusTarget;
+        const statusEl = statusId ? document.getElementById(statusId) : null;
+
+        if (statusEl) statusEl.textContent = "Sending to Discord...";
+
+        const submitBtn = form.querySelector("button[type='submit']");
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+          await sendToDiscord(formName, fields, currentUser, webhook);
+          if (statusEl) statusEl.textContent = "Logged to Discord ✅";
+          form.reset();
+        } catch (err) {
+          console.error(err);
+          if (statusEl) statusEl.textContent = "Error sending to Discord ❌";
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
     });
-  });
 }
 
-// NAV + TABS
-function showPage(key){
-  document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
-  const target = document.getElementById("page-"+key);
-  if(target) target.classList.remove("hidden");
-  document.querySelectorAll(".nav-item").forEach(btn=>{
-    btn.classList.toggle("active", btn.dataset.page===key);
+/* =========================================================
+   NAV + TABS
+   ========================================================= */
+
+function showPage(key) {
+  document.querySelectorAll(".page").forEach((p) => p.classList.add("hidden"));
+  const target = document.getElementById("page-" + key);
+  if (target) target.classList.remove("hidden");
+
+  document.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.page === key);
   });
-  if(key==="admin") loadAdminDashboard();
+
+  if (key === "admin") loadAdminDashboard();
 }
 
-function attachNavHandlers(){
-  document.querySelectorAll(".nav-item").forEach(btn=>{
-    btn.addEventListener("click",()=>{
+function attachNavHandlers() {
+  document.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const page = btn.dataset.page;
-      if(page) showPage(page);
+      if (page) showPage(page);
     });
   });
-  document.querySelectorAll("[data-page-jump]").forEach(btn=>{
-    btn.addEventListener("click",()=>{
+
+  document.querySelectorAll("[data-page-jump]").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const page = btn.dataset.pageJump;
       const tab = btn.dataset.tabJump;
-      if(page) showPage(page);
-      if(tab) activateTab(tab);
+      if (page) showPage(page);
+      if (tab) activateTab(tab);
     });
   });
 }
 
-function activateTab(tabKey){
-  document.querySelectorAll(".tab-button").forEach(btn=>{
-    btn.classList.toggle("active", btn.dataset.tab===tabKey);
+function activateTab(tabKey) {
+  document.querySelectorAll(".tab-button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tabKey);
   });
-  document.querySelectorAll(".tab-panel").forEach(panel=>{
-    panel.classList.toggle("hidden", panel.id !== "tab-"+tabKey);
+  document.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.id !== "tab-" + tabKey);
   });
 }
 
-function attachTabHandlers(){
-  document.querySelectorAll(".tab-button").forEach(btn=>{
-    btn.addEventListener("click",()=>{
+function attachTabHandlers() {
+  document.querySelectorAll(".tab-button").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const tab = btn.dataset.tab;
-      if(tab) activateTab(tab);
+      if (tab) activateTab(tab);
     });
   });
 }
 
-// Admin dashboard
-async function loadAdminDashboard(){
+/* =========================================================
+   ADMIN / COMMAND DASHBOARD
+   FIXED to match server.js:
+     /api/admin/logs/summary -> { ok, rows }
+     /api/admin/logs/user/:id -> { ok, logs } with fieldsJson
+   ========================================================= */
+
+function buildUsersFromSummaryRows(rows) {
+  const byUser = new Map();
+
+  for (const r of rows || []) {
+    const userId = r.userid || r.userId;
+    const username = r.username || "";
+    const displayName = r.displayname || r.displayName || "";
+    const formType = r.formtype || r.formType || "Unknown";
+    const count = Number(r.count || 0);
+
+    if (!userId) continue;
+
+    if (!byUser.has(userId)) {
+      byUser.set(userId, {
+        userId,
+        username,
+        displayName,
+        total: 0,
+        byType: {},
+      });
+    }
+
+    const u = byUser.get(userId);
+    if (!u.username && username) u.username = username;
+    if (!u.displayName && displayName) u.displayName = displayName;
+
+    u.byType[formType] = (u.byType[formType] || 0) + count;
+    u.total += count;
+  }
+
+  return Array.from(byUser.values()).sort((a, b) => {
+    const an = (a.displayName || a.username || "").toLowerCase();
+    const bn = (b.displayName || b.username || "").toLowerCase();
+    return an.localeCompare(bn);
+  });
+}
+
+async function loadAdminDashboard() {
   const content = document.getElementById("adminContent");
   const errBox = document.getElementById("adminError");
   const tbody = document.getElementById("adminSummaryBody");
   const resetStatus = document.getElementById("adminResetStatus");
-  if(!content || !errBox || !tbody) return;
+
+  if (!content || !errBox || !tbody) return;
 
   content.classList.add("hidden");
   errBox.classList.add("hidden");
   tbody.innerHTML = "";
-  if(resetStatus) resetStatus.textContent = "";
+  if (resetStatus) resetStatus.textContent = "";
 
-  try{
-    const res = await fetch("/api/admin/logs/summary",{credentials:"include"});
-    if(res.status===401 || res.status===403){
+  try {
+    const res = await fetch("/api/admin/logs/summary", {
+      credentials: "include",
+    });
+
+    if (res.status === 401 || res.status === 403) {
       errBox.classList.remove("hidden");
       return;
     }
-    const data = await res.json();
-    if(!data.ok){errBox.classList.remove("hidden");return;}
 
-    const users = data.users || [];
+    const data = await res.json();
+    if (!data.ok) {
+      errBox.classList.remove("hidden");
+      return;
+    }
+
+    // ✅ server returns rows
+    const users = buildUsersFromSummaryRows(data.rows || []);
     window.__adminSummaryUsers = users;
 
-    if(!users.length){
-      tbody.innerHTML = '<tr><td colspan="3">No logs recorded yet.</td></tr>';
-    }else{
-      users.forEach(u=>{
+    if (!users.length) {
+      tbody.innerHTML = `<tr><td colspan="3">No logs recorded yet.</td></tr>`;
+    } else {
+      users.forEach((u) => {
+        const byTypeParts = Object.entries(u.byType || {}).map(
+          ([type, count]) => `${type}: ${count}`
+        );
+
         const tr = document.createElement("tr");
-        const byTypeParts = [];
-        for(const [type,count] of Object.entries(u.byType || {})){
-          byTypeParts.push(`${type}: ${count}`);
-        }
-
-        const extraParts = [];
-        if(u.patrolHours && typeof u.patrolHours === "object"){
-          const h = u.patrolHours.hours || 0;
-          const m = u.patrolHours.minutes || 0;
-          const hoursStr = `${h}h ${String(m).padStart(2,"0")}m`;
-          if(h || m){
-            extraParts.push(`Patrol hours: ${hoursStr}`);
-          }
-        }
-        if(typeof u.onboardingCount === "number" && u.onboardingCount > 0){
-          extraParts.push(`Onboardings: ${u.onboardingCount}`);
-        }
-
-        const metaLines = [`ID: ${u.userId}`];
-        if(extraParts.length){
-          metaLines.push(extraParts.join(" • "));
-        }
-
         tr.innerHTML = `
-          <td>
-            <div><strong>${u.displayName || u.username}</strong></div>
-            <div style="font-size:0.78rem;color:#6b7280;">${metaLines.join("<br>")}</div>
-          </td>
-          <td>${u.total}</td>
-          <td>${byTypeParts.join(" • ")}</td>
+          <td>${u.displayName || u.username || "(Unknown)"}</td>
+          <td>ID: ${u.userId}</td>
+          <td>${u.total} ${byTypeParts.length ? " • " + byTypeParts.join(" • ") : ""}</td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    // update Command view user dropdown
-    if(typeof updateAdminUserSelect === "function"){
-      updateAdminUserSelect();
-    }
+    // Populate dropdown for user view
+    updateAdminUserSelect();
 
     content.classList.remove("hidden");
-  }catch(e){
-    console.error("admin summary error",e);
+  } catch (e) {
+    console.error("admin summary error", e);
     errBox.classList.remove("hidden");
   }
 }
 
-
-function updateAdminUserSelect(){
+function updateAdminUserSelect() {
   const select = document.getElementById("adminUserSelect");
-  if(!select) return;
+  if (!select) return;
+
   const users = window.__adminSummaryUsers || [];
   const prev = select.value;
-  select.innerHTML = '<option value="">-- Select a user --</option>';
-  const sorted = [...users].sort((a,b)=>{
-    const an = (a.displayName || a.username || "").toLowerCase();
-    const bn = (b.displayName || b.username || "").toLowerCase();
-    if(an<bn) return -1;
-    if(an>bn) return 1;
-    return 0;
-  });
-  sorted.forEach(u=>{
+
+  select.innerHTML = `<option value="">-- Select a user --</option>`;
+
+  users.forEach((u) => {
     const opt = document.createElement("option");
     opt.value = u.userId;
-    opt.textContent = (u.displayName || u.username) + ` (${u.userId})`;
+    opt.textContent = `${u.displayName || u.username || "Unknown"} (${u.userId})`;
     select.appendChild(opt);
   });
-  if(prev && users.some(u=>u.userId===prev)){
-    select.value = prev;
-  }
-  if(!select.dataset.bound){
-    select.addEventListener("change", ()=>{
+
+  if (prev && users.some((u) => u.userId === prev)) select.value = prev;
+
+  if (!select.dataset.bound) {
+    select.addEventListener("change", () => {
       const val = select.value;
-      if(val){
-        loadAdminUserView(val);
-      }else{
+      if (val) loadAdminUserView(val);
+      else {
         const statsEl = document.getElementById("adminUserStats");
         const body = document.getElementById("adminUserLogsBody");
-        if(statsEl) statsEl.textContent = "";
-        if(body) body.innerHTML = "";
+        if (statsEl) statsEl.textContent = "";
+        if (body) body.innerHTML = "";
       }
     });
     select.dataset.bound = "1";
   }
 }
 
-async function loadAdminUserView(userId){
+async function loadAdminUserView(userId) {
   const statsEl = document.getElementById("adminUserStats");
   const body = document.getElementById("adminUserLogsBody");
-  if(!body) return;
+  if (!body) return;
+
   body.innerHTML = "";
-  if(statsEl) statsEl.textContent = "Loading logs...";
+  if (statsEl) statsEl.textContent = "Loading logs...";
 
-  try{
-    const res = await fetch(`/api/admin/logs/user/${encodeURIComponent(userId)}`,{credentials:"include"});
+  try {
+    const res = await fetch(`/api/admin/logs/user/${encodeURIComponent(userId)}`, {
+      credentials: "include",
+    });
     const data = await res.json();
-    if(!res.ok || !data.ok){
-      if(statsEl) statsEl.textContent = "Failed to load logs for this user.";
+
+    if (!res.ok || !data.ok) {
+      if (statsEl) statsEl.textContent = "Failed to load logs for this user.";
       return;
     }
+
     const logs = data.logs || [];
+
     const users = window.__adminSummaryUsers || [];
-    const u = users.find(x=>x.userId===userId);
-    const statsBits = [];
-    if(u){
-      statsBits.push(`Total logs: ${u.total}`);
-      const patrolCount = (u.byType && u.byType["Patrol Log"]) || u.patrolCount || 0;
-      if(patrolCount){
-        const h = (u.patrolHours && u.patrolHours.hours) || 0;
-        const m = (u.patrolHours && u.patrolHours.minutes) || 0;
-        const hoursStr = `${h}h ${String(m).padStart(2,"0")}m`;
-        statsBits.push(`Patrol logs: ${patrolCount} (${hoursStr})`);
-      }
-      const onboardingCount = (u.byType && u.byType["Onboarding Log"]) || u.onboardingCount || 0;
-      if(onboardingCount){
-        statsBits.push(`Onboardings: ${onboardingCount}`);
-      }
-    }
-    if(statsEl){
-      statsEl.textContent = statsBits.length ? statsBits.join(" • ") : "No stats for this user yet.";
+    const u = users.find((x) => x.userId === userId);
+
+    if (statsEl) {
+      const byType = u?.byType ? Object.entries(u.byType).map(([t, c]) => `${t}: ${c}`) : [];
+      statsEl.textContent = u
+        ? `Total logs: ${u.total}${byType.length ? " • " + byType.join(" • ") : ""}`
+        : "User stats unavailable.";
     }
 
-    if(!logs.length){
-      body.innerHTML = '<tr><td colspan="4">No logs found for this user.</td></tr>';
+    if (!logs.length) {
+      body.innerHTML = `<tr><td colspan="3">No logs found for this user.</td></tr>`;
       return;
     }
 
-    logs.forEach(log=>{
-      const tr = document.createElement("tr");
-      const created = log.createdAt ? new Date(log.createdAt) : null;
+    logs.forEach((log) => {
+      const created = log.createdat || log.createdAt ? new Date(log.createdat || log.createdAt) : null;
       const createdText = created ? created.toLocaleString() : "";
+
+      // ✅ server uses fieldsJson
+      const fields = log.fieldsjson || log.fieldsJson || [];
       const detailsPieces = [];
-      if(Array.isArray(log.fields)){
-        log.fields.forEach(pair=>{
-          if(!Array.isArray(pair) || pair.length<2) return;
-          const label = String(pair[0]||"").trim();
-          const val = String(pair[1]||"").trim();
-          if(!label) return;
-          detailsPieces.push(`<strong>${label}:</strong> ${val}`);
+
+      if (Array.isArray(fields)) {
+        fields.forEach((pair) => {
+          if (!Array.isArray(pair) || pair.length < 2) return;
+          const label = String(pair[0] || "").trim();
+          const val = String(pair[1] || "").trim();
+          if (!label) return;
+          detailsPieces.push(`${label}: ${val}`);
         });
       }
-      const details = detailsPieces.join("<br>");
 
+      const details = detailsPieces.join("\n");
+
+      const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${createdText}</td>
-        <td>${log.formType || ""}</td>
-        <td>${details}</td>
-        <td><button class="danger-btn small" data-log-id="${log.id}" data-user-id="${log.userId}">Remove</button></td>
+        <td>${log.formtype || log.formType || ""}</td>
+        <td><pre style="white-space:pre-wrap;margin:0;">${details}</pre></td>
       `;
       body.appendChild(tr);
     });
-
-    body.querySelectorAll("button[data-log-id]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const logId = btn.getAttribute("data-log-id");
-        const uid = btn.getAttribute("data-user-id");
-        if(logId && uid){
-          deleteAdminLog(logId, uid);
-        }
-      });
-    });
-  }catch(e){
+  } catch (e) {
     console.error("loadAdminUserView error", e);
-    if(statsEl) statsEl.textContent = "Error loading logs for this user.";
+    if (statsEl) statsEl.textContent = "Error loading logs for this user.";
   }
 }
 
-async function deleteAdminLog(logId,userId){
-  if(!logId) return;
-  const yes = confirm("Are you sure you want to remove this log? This cannot be undone.");
-  if(!yes) return;
-
+async function resetAdminStats() {
   const resetStatus = document.getElementById("adminResetStatus");
-  if(resetStatus) resetStatus.textContent = "Removing log...";
+  if (resetStatus) resetStatus.textContent = "Resetting stats...";
 
-  try{
-    const res = await fetch(`/api/admin/logs/${encodeURIComponent(logId)}`,{
-      method:"DELETE",
-      credentials:"include"
+  try {
+    const res = await fetch("/api/admin/logs/reset", {
+      method: "POST",
+      credentials: "include",
     });
-    let data = {};
-    try{ data = await res.json(); }catch(e){}
-    if(!res.ok || !data.ok){
-      alert((data && data.error) || "Failed to remove log.");
-      if(resetStatus) resetStatus.textContent = "";
-      return;
-    }
-    if(resetStatus) resetStatus.textContent = "Log removed ✅";
-    await loadAdminDashboard();
-    if(userId){
-      await loadAdminUserView(userId);
-    }
-  }catch(e){
-    console.error("deleteAdminLog error", e);
-    alert("Error removing log.");
-    if(resetStatus) resetStatus.textContent = "";
-  }
-}
 
-
-async function resetAdminStats(){
-  const resetStatus = document.getElementById("adminResetStatus");
-  if(resetStatus) resetStatus.textContent = "Resetting stats...";
-  try{
-    const res = await fetch("/api/admin/logs/reset",{
-      method:"POST",
-      credentials:"include"
-    });
     let data = {};
-    try{ data = await res.json(); }catch(e){}
-    if(!res.ok || !data.ok){
-      if(resetStatus)
+    try {
+      data = await res.json();
+    } catch {}
+
+    if (!res.ok || !data.ok) {
+      if (resetStatus)
         resetStatus.textContent = (data && data.error) || "You are not allowed to reset stats.";
       return;
     }
-    if(resetStatus) resetStatus.textContent = "Stats reset ✅";
+
+    if (resetStatus) resetStatus.textContent = "Stats reset ✅";
     await loadAdminDashboard();
-  }catch(e){
-    console.error("reset error",e);
-    if(resetStatus) resetStatus.textContent = "Error resetting stats.";
+  } catch (e) {
+    console.error("reset error", e);
+    if (resetStatus) resetStatus.textContent = "Error resetting stats.";
   }
 }
 
-document.addEventListener("DOMContentLoaded",()=>{
-  document.getElementById("discordLoginButton").addEventListener("click",()=>{
+/* =========================================================
+   BOOT
+   ========================================================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("discordLoginButton")?.addEventListener("click", () => {
     window.location.href = "/api/login";
   });
+
   const resetBtn = document.getElementById("resetStatsButton");
-  if(resetBtn){
-    resetBtn.addEventListener("click",()=>{
-      if(confirm("Are you sure you want to reset all stored stats? This cannot be undone.")){
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to reset all stored stats? This cannot be undone.")) {
         resetAdminStats();
       }
     });
   }
+
   attachFormHandlers();
   attachNavHandlers();
   attachTabHandlers();
+
   showPage("home");
   activateTab("patrol");
+
   checkAuth();
 });
