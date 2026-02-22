@@ -152,7 +152,7 @@ app.get("/api/discord/member/:id", requireLogin, async (req, res) => {
       `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${id}`,
       {
         headers: {
-          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN || process.env.BOT_TOKEN}`,
         },
       }
     );
@@ -214,6 +214,17 @@ async function discordGet(url, accessToken) {
   return r.json();
 }
 
+// Fetch guild member via BOT token (more reliable for roles)
+async function botGetGuildMember(userId) {
+  const botToken = process.env.DISCORD_BOT_TOKEN || process.env.BOT_TOKEN;
+  if (!botToken) return null;
+
+  const url = `https://discord.com/api/v10/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/members/${encodeURIComponent(userId)}`;
+  const r = await fetch(url, { headers: { Authorization: `Bot ${botToken}` } });
+  if (!r.ok) return null;
+  return r.json();
+}
+
 app.get("/api/callback", async (req, res) => {
   try {
     const code = String(req.query.code || "");
@@ -224,13 +235,17 @@ app.get("/api/callback", async (req, res) => {
 
     const user = await discordGet("https://discord.com/api/users/@me", accessToken);
 
-    // Requires guilds.members.read + your bot must be in the guild
-    const member = await discordGet(
+    // Requires guilds.members.read
+    const oauthMember = await discordGet(
       `https://discord.com/api/users/@me/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/member`,
       accessToken
     );
 
-    const roles = member.roles || [];
+    // Prefer bot-based member lookup for roles (more reliable), fallback to OAuth member
+    const botMember = await botGetGuildMember(user.id);
+    const member = botMember || oauthMember;
+
+    const roles = (member && member.roles) ? member.roles : [];
     if (!hasAnyRole(roles, PORTAL_ACCESS_ROLE_IDS)) {
       req.session = null;
       return res.redirect("/unauthorized.html");
@@ -265,6 +280,14 @@ app.get("/api/logout", (req, res) => {
 
 app.get("/api/me", (req, res) => {
   res.json({ ok: true, user: (req.session && req.session.user) || null });
+});
+
+
+// Logout (clears cookie-session)
+app.post("/api/logout", (req, res) => {
+  req.session = null;
+  res.clearCookie("gsrp_session");
+  res.json({ ok: true });
 });
 
 // =====================
