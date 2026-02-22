@@ -554,8 +554,7 @@ async function loadAdminUserView(userId) {
         });
       }
 
-      const details = detailsPieces.join("
-");
+      const details = detailsPieces.join("\n");
       const logId = log.id;
 
       const tr = document.createElement("tr");
