@@ -61,17 +61,50 @@ const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
 
-// comma-separated role IDs allowed to use portal (optional)
-const ALLOWED_ROLE_IDS = (process.env.DISCORD_ALLOWED_ROLE_IDS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+// =====================
+// ROLE ACCESS CONTROL (hardcoded)
+// =====================
 
-// comma-separated role IDs considered admin (optional)
-const ADMIN_ROLE_IDS = (process.env.DISCORD_ADMIN_ROLE_IDS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+// Portal Access (can login + use portal)
+const PORTAL_ACCESS_ROLE_IDS = [
+  "1440587203863380010",
+  "1440587200646610954",
+  "1440587191972659301",
+  "1440587190940995584",
+  "1440587183953023009",
+  "1348733075823136898",
+  "1440587202634715187",
+  "1440587197278588938",
+  "1440587187229036627"
+];
+
+// Command Dashboard access
+const DASHBOARD_ROLE_IDS = [
+  "1440587191972659301",
+  "1440587190940995584",
+  "1440587183953023009",
+  "1348733075823136898",
+  "1440587187229036627",
+  "1440587212562370620"
+];
+
+// Can remove/archive individual logs
+const REMOVE_LOG_ROLE_IDS = [
+  "1440587191972659301",
+  "1440587190940995584",
+  "1440587183953023009",
+  "1348733075823136898",
+  "1440587187229036627",
+  "1440587212562370620"
+];
+
+// Can mass reset stats (archive all)
+const RESET_STATS_ROLE_IDS = [
+  "1440587183953023009",
+  "1348733075823136898",
+  "1440587212562370620"
+];
+
 
 function hasAnyRole(memberRoles, requiredRoles) {
   if (!requiredRoles || requiredRoles.length === 0) return true;
@@ -86,9 +119,21 @@ function requireLogin(req, res, next) {
   if (!req.session || !req.session.user) return res.status(401).json({ ok: false, error: "Not logged in" });
   next();
 }
-function requireAdmin(req, res, next) {
+function requireDashboard(req, res, next) {
   if (!req.session || !req.session.user) return res.status(401).json({ ok: false, error: "Not logged in" });
-  if (!req.session.user.isAdmin) return res.status(403).json({ ok: false, error: "Forbidden" });
+  if (!req.session.user.canViewDashboard) return res.status(403).json({ ok: false, error: "Forbidden" });
+  next();
+}
+
+function requireRemoveLogs(req, res, next) {
+  if (!req.session || !req.session.user) return res.status(401).json({ ok: false, error: "Not logged in" });
+  if (!req.session.user.canRemoveLogs) return res.status(403).json({ ok: false, error: "Forbidden" });
+  next();
+}
+
+function requireResetStats(req, res, next) {
+  if (!req.session || !req.session.user) return res.status(401).json({ ok: false, error: "Not logged in" });
+  if (!req.session.user.canResetStats) return res.status(403).json({ ok: false, error: "Forbidden" });
   next();
 }
 
@@ -186,19 +231,23 @@ app.get("/api/callback", async (req, res) => {
     );
 
     const roles = member.roles || [];
-    if (!hasAnyRole(roles, ALLOWED_ROLE_IDS)) {
+    if (!hasAnyRole(roles, PORTAL_ACCESS_ROLE_IDS)) {
       req.session = null;
       return res.redirect("/unauthorized.html");
     }
 
-    const isAdmin = hasAnyRole(roles, ADMIN_ROLE_IDS);
+    const canViewDashboard = hasAnyRole(roles, DASHBOARD_ROLE_IDS);
+    const canRemoveLogs = hasAnyRole(roles, REMOVE_LOG_ROLE_IDS);
+    const canResetStats = hasAnyRole(roles, RESET_STATS_ROLE_IDS);
 
     req.session.user = {
       id: user.id,
       username: user.username,
       displayName: member.nick || user.global_name || user.username,
       roles,
-      isAdmin,
+      canViewDashboard,
+      canRemoveLogs,
+      canResetStats,
     };
 
     res.redirect("/");
@@ -243,7 +292,7 @@ app.post("/api/logs/store", requireLogin, async (req, res) => {
 // =====================
 // ADMIN ENDPOINTS
 // =====================
-app.get("/api/admin/logs/summary", requireAdmin, async (req, res) => {
+app.get("/api/admin/logs/summary", requireDashboard, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT userId, MAX(username) AS username, MAX(displayName) AS displayName,
@@ -259,7 +308,7 @@ app.get("/api/admin/logs/summary", requireAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/admin/logs/user/:userId", requireAdmin, async (req, res) => {
+app.get("/api/admin/logs/user/:userId", requireDashboard, async (req, res) => {
   try {
     const userId = String(req.params.userId || "");
     const r = await pool.query(
@@ -279,7 +328,7 @@ app.get("/api/admin/logs/user/:userId", requireAdmin, async (req, res) => {
 
 
 
-app.post("/api/admin/logs/archive/:id", requireAdmin, async (req, res) => {
+app.post("/api/admin/logs/archive/:id", requireRemoveLogs, async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     if (!/^\d+$/.test(id)) {
@@ -298,7 +347,7 @@ app.post("/api/admin/logs/archive/:id", requireAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/admin/logs/reset", requireAdmin, async (req, res) => {
+app.post("/api/admin/logs/reset", requireResetStats, async (req, res) => {
   try {
     await pool.query(`UPDATE logs SET archived = TRUE WHERE archived = FALSE`);
     res.json({ ok: true });
